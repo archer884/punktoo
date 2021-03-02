@@ -12,7 +12,7 @@ readme          = "README.md"
 [dependencies]
 num             = "0.3.1"
 phf             = { version = "0.8.0", features = ["macros"] }
-rustc-serialize = "0.3"
+# rustc-serialize = "0.3"
 rust-freqdist   = "0.1"
 
 [dev-dependencies]
