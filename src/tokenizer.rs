@@ -36,7 +36,7 @@ where
     #[inline(always)]
     pub fn new(doc: &'a str) -> PeriodContextTokenizer<'a, P> {
         PeriodContextTokenizer {
-            doc: doc,
+            doc,
             pos: 0,
             params: PhantomData,
         }
@@ -210,7 +210,7 @@ where
     pub fn new(doc: &'a str) -> WordTokenizer<'a, P> {
         WordTokenizer {
             pos: 0,
-            doc: doc,
+            doc,
             params: PhantomData,
         }
     }
@@ -374,9 +374,9 @@ where
     #[inline(always)]
     pub fn new(doc: &'a str, data: &'a TrainingData) -> SentenceByteOffsetTokenizer<'a, P> {
         SentenceByteOffsetTokenizer {
-            doc: doc,
+            doc,
             iter: PeriodContextTokenizer::new(doc),
-            data: data,
+            data,
             last: 0,
             params: PhantomData,
         }
@@ -480,7 +480,7 @@ where
     #[inline(always)]
     pub fn new(doc: &'a str, data: &'a TrainingData) -> SentenceTokenizer<'a, P> {
         SentenceTokenizer {
-            doc: doc,
+            doc,
             iter: SentenceByteOffsetTokenizer::new(doc, data),
             params: PhantomData,
         }
