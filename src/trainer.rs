@@ -12,11 +12,10 @@ use std::{
     hash::{Hash, Hasher},
     marker::PhantomData,
     ops::Deref,
-    str::FromStr,
 };
 
 use freqdist::FrequencyDistribution;
-use rustc_serialize::json::Json;
+use serde::Deserialize;
 
 use crate::{
     prelude::{
@@ -99,7 +98,7 @@ where
 /// assert!(eng_data.contains_abbrev("va"));
 /// assert!(ger_data.contains_abbrev("crz"));
 /// ```
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default, Deserialize)]
 pub struct TrainingData {
     abbrevs: HashSet<String>,
     collocations: HashMap<String, HashSet<String>>,
@@ -204,75 +203,6 @@ impl TrainingData {
     #[inline(always)]
     pub fn get_orthographic_context(&self, tok: &str) -> u8 {
         *self.orthographic_context.get(tok).unwrap_or(&0)
-    }
-}
-
-impl FromStr for TrainingData {
-    type Err = &'static str;
-
-    /// Deserializes JSON and loads the data into a new TrainingData object.
-    fn from_str(s: &str) -> Result<TrainingData, &'static str> {
-        match Json::from_str(s) {
-            Ok(Json::Object(mut obj)) => {
-                let mut data: TrainingData = Default::default();
-
-                // Macro that gets a Json array by a path on the object. Then does a
-                // pattern match on a specified pattern, and runs a specified action.
-                macro_rules! read_json_array_data(
-          ($path:expr, $mtch:pat, $act:expr) => (
-            match obj.remove($path) {
-              Some(Json::Array(arr)) => {
-                for x in arr.into_iter() {
-                  match x {
-                    $mtch => { $act; }
-                        _ => ()
-                  }
-                }
-              }
-              _ => return Err("failed to parse expected path")
-            }
-          );
-        );
-
-                read_json_array_data!(
-                    "abbrev_types",
-                    Json::String(st),
-                    data.insert_abbrev(&st[..])
-                );
-
-                read_json_array_data!(
-                    "sentence_starters",
-                    Json::String(st),
-                    data.insert_sentence_starter(&st[..])
-                );
-
-                // Load collocations, these come as an array with 2 members in them (or they should).
-                // Pop them in reverse order, then insert into the proper bucket.
-                read_json_array_data!("collocations", Json::Array(mut ar), {
-                    match (ar.pop(), ar.pop()) {
-                        (Some(Json::String(r)), Some(Json::String(l))) => data
-                            .collocations
-                            .entry(l)
-                            .or_insert(HashSet::new())
-                            .insert(r),
-                        _ => return Err("failed to parse collocations section"),
-                    };
-                });
-
-                match obj.remove("ortho_context") {
-                    Some(Json::Object(obj)) => {
-                        for (k, ctxt) in obj.into_iter() {
-                            ctxt.as_u64()
-                                .map(|c| data.orthographic_context.insert(k, c as u8));
-                        }
-                    }
-                    _ => return Err("failed to parse orthographic context section"),
-                }
-
-                Ok(data)
-            }
-            _ => Err("no json object found containing training data"),
-        }
     }
 }
 
@@ -740,13 +670,13 @@ where
 
 // Macro for generating functions to load precompiled data.
 macro_rules! preloaded_data(
-  ($lang:ident, $file:expr) => (
-    impl TrainingData {
-      #[inline] #[allow(missing_docs)] pub fn $lang() -> TrainingData {
-        FromStr::from_str(include_str!($file)).unwrap()
-      }
-    }
-  )
+    ($lang:ident, $file:expr) => (
+        impl TrainingData {
+            #[inline] #[allow(missing_docs)] pub fn $lang() -> TrainingData {
+                serde_json::from_str(include_str!($file)).unwrap()
+            }
+        }
+    )
 );
 
 preloaded_data!(czech, "data/czech.json");
