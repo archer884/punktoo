@@ -50,7 +50,7 @@ where
 
         while pos < self.doc.len() {
             let mut iter = self.doc[pos..].chars();
-            let cur = iter.nth(0).unwrap();
+            let cur = iter.next().unwrap();
 
             match cur {
                 // A whitespace is reached before a sentence ending character
@@ -258,20 +258,17 @@ where
                 // one exists return it, and modify `self.pos`. Otherwise, continue.
                 // If a capture has begin, or a comma was encountered, return the token
                 // before this multi-char.
-                '.' | '-' => match is_multi_char(self.doc, self.pos) {
-                    Some(s) => {
-                        if state & CAPTURE_START != 0 || state & CAPTURE_COMMA != 0 {
-                            return_token!()
-                        }
-
-                        start = self.pos;
-                        is_ellipsis = s.ends_with(".");
-
-                        self.pos += s.len();
-
+                '.' | '-' => if let Some(s) = is_multi_char(self.doc, self.pos) {
+                    if state & CAPTURE_START != 0 || state & CAPTURE_COMMA != 0 {
                         return_token!()
                     }
-                    None => (),
+
+                    start = self.pos;
+                    is_ellipsis = s.ends_with('.');
+
+                    self.pos += s.len();
+
+                    return_token!()
                 },
                 // Not a potential multi-char start, continue...
                 _ => (),
@@ -405,16 +402,12 @@ where
 
                 // Second pass annotation is a bit more finicky...It depends on the
                 // previous token that was found.
-                match prv {
-                    Some(mut p) => {
-                        annotate_second_pass::<P>(&mut t, &mut p, self.data);
-
-                        if p.is_sentence_break() {
-                            has_sentence_break = true;
-                            break;
-                        }
+                if let Some(mut p) = prv {
+                    annotate_second_pass::<P>(&mut t, &mut p, self.data);
+                    if p.is_sentence_break() {
+                        has_sentence_break = true;
+                        break;
                     }
-                    None => (),
                 }
 
                 prv = Some(t);
@@ -511,7 +504,7 @@ where
 {
     use crate::prelude::{BEG_LC, MID_UC, ORT_LC, ORT_UC};
 
-    if P::is_punctuation(&tok.tok().chars().nth(0).unwrap()) {
+    if P::is_punctuation(&tok.tok().chars().next().unwrap()) {
         Some(false)
     } else {
         let ctxt = data.get_orthographic_context(tok.typ_without_break_or_period());

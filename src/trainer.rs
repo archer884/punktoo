@@ -44,7 +44,7 @@ where
 {
     #[inline(always)]
     pub fn new(l: T, r: T) -> Collocation<T> {
-        Collocation { l: l, r: r }
+        Collocation { l, r }
     }
 
     #[inline(always)]
@@ -186,12 +186,9 @@ impl TrainingData {
     fn insert_orthographic_context(&mut self, tok: &str, ctxt: OrthographicContext) -> bool {
         // `get_mut` isn't allowed here, without adding an unnecessary lifetime
         // qualifier to `tok`.
-        match self.orthographic_context.get_mut(tok) {
-            Some(c) => {
-                *c |= ctxt;
-                return false;
-            }
-            None => (),
+        if let Some(c) = self.orthographic_context.get_mut(tok) {
+            *c |= ctxt;
+            return false;
         }
 
         self.orthographic_context.insert(tok.to_string(), ctxt);
@@ -210,6 +207,7 @@ impl TrainingData {
 /// collocations, and context that tokens appear in. The data is
 /// used by the sentence tokenizer to determine if a period is likely
 /// part of an abbreviation, or actually marks the termination of a sentence.
+#[derive(Default)]
 pub struct Trainer<P> {
     params: PhantomData<P>,
 }
@@ -247,8 +245,8 @@ where
         {
             let reclassify_iter: ReclassifyIterator<_, P> = ReclassifyIterator {
                 iter: tokens.iter(),
-                data: data,
-                period_token_count: period_token_count,
+                data,
+                period_token_count,
                 type_fdist: &mut type_fdist,
                 params: PhantomData,
             };
@@ -261,12 +259,10 @@ where
                                 .insert_abbrev(t.typ_without_period());
                         }
                     }
-                } else {
-                    if !t.has_final_period() {
-                        unsafe {
-                            (&mut *(data as *const TrainingData as *mut TrainingData))
-                                .remove_abbrev(t.typ_without_period());
-                        }
+                } else if !t.has_final_period() {
+                    unsafe {
+                        (&mut *(data as *const TrainingData as *mut TrainingData))
+                            .remove_abbrev(t.typ_without_period());
                     }
                 }
             }
@@ -334,7 +330,7 @@ where
             let ss_iter: PotentialSentenceStartersIterator<_, P> =
                 PotentialSentenceStartersIterator {
                     iter: sentence_starter_fdist.keys(),
-                    sentence_break_count: sentence_break_count,
+                    sentence_break_count,
                     type_fdist: &type_fdist,
                     sentence_starter_fdist: &sentence_starter_fdist,
                     params: PhantomData,
@@ -448,10 +444,8 @@ where
                 if self.data.contains_abbrev(t.typ()) {
                     continue;
                 }
-            } else {
-                if !self.data.contains_abbrev(t.typ()) {
-                    continue;
-                }
+            } else if !self.data.contains_abbrev(t.typ()) {
+                continue;
             }
 
             let num_periods =
