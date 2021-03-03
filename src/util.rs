@@ -11,7 +11,7 @@ use num::Float;
 use crate::{prelude::DefinesSentenceEndings, token::Token, trainer::TrainingData};
 
 /// Peforms a first pass annotation on a Token.
-pub fn annotate_first_pass<P: DefinesSentenceEndings>(tok: &mut Token, data: &TrainingData) {
+pub fn annotate_first_pass(definition: &impl DefinesSentenceEndings, tok: &mut Token, data: &TrainingData) {
     let is_split_abbrev = tok
         .tok()
         .rsplitn(1, '-')
@@ -19,7 +19,7 @@ pub fn annotate_first_pass<P: DefinesSentenceEndings>(tok: &mut Token, data: &Tr
         .map(|s| data.contains_abbrev(s))
         .unwrap_or(false);
 
-    if tok.tok().len() == 1 && P::is_sentence_ending(&tok.tok().chars().next().unwrap()) {
+    if tok.tok().len() == 1 && definition.is_sentence_ending(&tok.tok().chars().next().unwrap()) {
         tok.set_is_sentence_break(true);
     } else if tok.has_final_period() && !tok.is_ellipsis() {
         if is_split_abbrev || data.contains_abbrev(tok.tok_without_period()) {

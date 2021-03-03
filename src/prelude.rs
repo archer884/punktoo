@@ -18,7 +18,7 @@ pub trait DefinesSentenceEndings {
 
     /// Checks if a character is a sentence ending.
     #[inline]
-    fn is_sentence_ending(c: &char) -> bool {
+    fn is_sentence_ending(&self, c: &char) -> bool {
         Self::SENTENCE_ENDINGS.contains(c)
     }
 }
@@ -31,7 +31,7 @@ pub trait DefinesInternalPunctuation {
     /// Checks if a character is a legal punctuation character that can occur
     /// within a word.
     #[inline]
-    fn is_internal_punctuation(c: &char) -> bool {
+    fn is_internal_punctuation(&self, c: &char) -> bool {
         Self::INTERNAL_PUNCTUATION.contains(c)
     }
 }
@@ -75,33 +75,43 @@ pub trait DefinesNonPrefixCharacters {
 }
 
 /// Configurable parameters for a trainer.
-pub trait TrainerParameters: DefinesSentenceEndings + DefinesInternalPunctuation {
+pub trait TrainerConfig: DefinesSentenceEndings + DefinesInternalPunctuation {
     /// Lower bound score for a token to be considered an abbreviation.
-    const ABBREV_LOWER_BOUND: f64 = 0.3;
+    #[inline(always)]
+    fn abbrev_lower_bound(&self) -> f64 {
+        0.3
+    }
 
     /// Upper bound score for a token to be considered an abbreviation.
-    const ABBREV_UPPER_BOUND: f64 = 5f64;
+    #[inline(always)]
+    fn abbrev_upper_bound(&self) -> f64 { 5f64 }
 
     /// Disables the abbreviation penalty which exponentially penalizes occurances
     /// of words without a trailing period.
-    const IGNORE_ABBREV_PENALTY: bool = false;
+    #[inline(always)]
+    fn ignore_abbrev_penalty(&self) -> bool { false }
 
     /// Lower bound score for two tokens to be considered a collocation
-    const COLLOCATION_LOWER_BOUND: f64 = 7.88;
+    #[inline(always)]
+    fn collocation_lower_bound(&self) -> f64 { 7.88 }
 
     /// Lower bound score for a token to be considered a sentence starter.
-    const SENTENCE_STARTER_LOWER_BOUND: f64 = 30f64;
+    #[inline(always)]
+    fn sentence_starter_lower_bound(&self) -> f64 { 30f64 }
 
     /// Include all pairs where the first token ends with a period.
-    const INCLUDE_ALL_COLLOCATIONS: bool = false;
+    #[inline(always)]
+    fn include_all_collocations(&self) -> bool { false }
 
     /// Include all pairs where the first is an abbreviation. Overridden by
     /// `include_all_collocations`.
-    const INCLUDE_ABBREV_COLLOCATIONS: bool = false;
+    #[inline(always)]
+    fn include_abbrev_collocations(&self) -> bool { false }
 
     /// Minimum number of times a bigram appears in order to be considered a
     /// collocation.
-    const COLLOCATION_FREQUENCY_LOWER_BOUND: f64 = 1f64;
+    #[inline(always)]
+    fn collocation_frequency_lower_bound(&self) -> f64 { 1f64 }
 }
 
 /// Standard settings for all tokenizers, and trainers.
@@ -112,7 +122,7 @@ impl DefinesNonPrefixCharacters for Standard {}
 impl DefinesNonWordCharacters for Standard {}
 impl DefinesPunctuation for Standard {}
 impl DefinesSentenceEndings for Standard {}
-impl TrainerParameters for Standard {}
+impl TrainerConfig for Standard {}
 
 pub type OrthographicContext = u8;
 

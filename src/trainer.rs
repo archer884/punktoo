@@ -10,7 +10,6 @@ use std::{
     cmp,
     collections::{HashMap, HashSet},
     hash::{Hash, Hasher},
-    marker::PhantomData,
     ops::Deref,
 };
 
@@ -20,7 +19,7 @@ use serde::Deserialize;
 use crate::{
     prelude::{
         DefinesNonPrefixCharacters, DefinesNonWordCharacters, OrthographicContext,
-        OrthographyPosition, TrainerParameters,
+        OrthographyPosition, TrainerConfig,
     },
     token::Token,
     tokenizer::WordTokenizer,
@@ -124,11 +123,7 @@ impl TrainingData {
     /// Insert a newly learned abbreviation.
     #[inline]
     fn insert_abbrev(&mut self, tok: &str) -> bool {
-        if !self.contains_abbrev(tok) {
-            self.abbrevs.insert(tok.to_lowercase())
-        } else {
-            false
-        }
+        self.abbrevs.insert(tok.to_lowercase())
     }
 
     /// Removes a learned abbreviation.
@@ -208,32 +203,30 @@ impl TrainingData {
 /// used by the sentence tokenizer to determine if a period is likely
 /// part of an abbreviation, or actually marks the termination of a sentence.
 #[derive(Default)]
-pub struct Trainer<P> {
-    params: PhantomData<P>,
+pub struct Trainer<T> {
+    config: T,
 }
 
-impl<P> Trainer<P>
+impl<T> Trainer<T>
 where
-    P: TrainerParameters + DefinesNonPrefixCharacters + DefinesNonWordCharacters,
+    T: TrainerConfig + DefinesNonPrefixCharacters + DefinesNonWordCharacters,
 {
     /// Creates a new Trainer.
     #[inline(always)]
-    pub fn new() -> Trainer<P> {
-        Trainer {
-            params: PhantomData,
-        }
+    pub fn new(config: T) -> Trainer<T> {
+        Trainer { config }
     }
 
     /// Train on a document. Does tokenization using a WordTokenizer.
     pub fn train(&self, doc: &str, data: &mut TrainingData) {
         let mut period_token_count: usize = 0;
         let mut sentence_break_count: usize = 0;
-        let tokens: Vec<Token> = WordTokenizer::<P>::new(doc).collect();
+        let tokens: Vec<Token> = WordTokenizer::<T>::new(doc).collect();
         let mut type_fdist: FrequencyDistribution<&str> = FrequencyDistribution::new();
         let mut collocation_fdist = FrequencyDistribution::new();
         let mut sentence_starter_fdist = FrequencyDistribution::new();
 
-        for t in tokens.iter() {
+        for t in &tokens {
             if t.has_final_period() {
                 period_token_count += 1
             }
@@ -242,37 +235,26 @@ where
 
         // Iterate through to see if any tokens need to be reclassified as an
         // abbreviation or removed as an abbreviation.
-        {
-            let reclassify_iter: ReclassifyIterator<_, P> = ReclassifyIterator {
-                iter: tokens.iter(),
-                data,
-                period_token_count,
-                type_fdist: &mut type_fdist,
-                params: PhantomData,
-            };
+        let reclassify_iter = ReclassifyIterator {
+            iter: tokens.iter(),
+            period_token_count,
+            type_fdist: &mut type_fdist,
+            config: &self.config,
+        };
 
-            for (t, score) in reclassify_iter {
-                if score >= P::ABBREV_LOWER_BOUND {
-                    if t.has_final_period() {
-                        unsafe {
-                            (&mut *(data as *const TrainingData as *mut TrainingData))
-                                .insert_abbrev(t.typ_without_period());
-                        }
-                    }
-                } else if !t.has_final_period() {
-                    unsafe {
-                        (&mut *(data as *const TrainingData as *mut TrainingData))
-                            .remove_abbrev(t.typ_without_period());
-                    }
-                }
+        for (t, score) in reclassify_iter {
+            if score >= self.config.abbrev_lower_bound() && t.has_final_period() {
+                data.insert_abbrev(t.typ_without_period());
+            } else if !t.has_final_period() {
+                data.remove_abbrev(t.typ_without_period());
             }
         }
 
         // Annotating the tokens requires an unsafe block, but it won't modify any pointers,
         // just will modify some flags on the tokens.
-        for t in tokens.iter() {
+        for t in &tokens {
             unsafe {
-                util::annotate_first_pass::<P>(&mut *(t as *const Token as *mut Token), data);
+                util::annotate_first_pass(&self.config, &mut *(t as *const Token as *mut Token), data);
             }
         }
 
@@ -309,7 +291,7 @@ where
             for (lt, rt) in consecutive_token_iter {
                 match rt {
                     Some(cur) if lt.has_final_period() => {
-                        if is_rare_abbrev_type::<P>(&data, &type_fdist, lt, cur) {
+                        if is_rare_abbrev_type(&self.config, &data, &type_fdist, lt, cur) {
                             data.insert_abbrev(lt.typ_without_period());
                         }
 
@@ -317,7 +299,7 @@ where
                             sentence_starter_fdist.insert(cur);
                         }
 
-                        if is_potential_collocation::<P>(lt, cur) {
+                        if is_potential_collocation(&self.config, lt, cur) {
                             collocation_fdist.insert(Collocation::new(lt, cur));
                         }
                     }
@@ -327,13 +309,13 @@ where
         }
 
         {
-            let ss_iter: PotentialSentenceStartersIterator<_, P> =
+            let ss_iter: PotentialSentenceStartersIterator<_, T> =
                 PotentialSentenceStartersIterator {
                     iter: sentence_starter_fdist.keys(),
                     sentence_break_count,
                     type_fdist: &type_fdist,
                     sentence_starter_fdist: &sentence_starter_fdist,
-                    params: PhantomData,
+                    config: &self.config,
                 };
 
             for (tok, _) in ss_iter {
@@ -342,12 +324,12 @@ where
         }
 
         {
-            let clc_iter: PotentialCollocationsIterator<_, P> = PotentialCollocationsIterator {
+            let clc_iter: PotentialCollocationsIterator<_, T> = PotentialCollocationsIterator {
                 iter: collocation_fdist.keys(),
                 data: &data,
                 type_fdist: &type_fdist,
                 collocation_fdist: &collocation_fdist,
-                params: PhantomData,
+                config: &self.config,
             };
 
             for (col, _) in clc_iter {
@@ -362,15 +344,13 @@ where
     }
 }
 
-fn is_rare_abbrev_type<P>(
+fn is_rare_abbrev_type(
+    config: &impl TrainerConfig,
     data: &TrainingData,
     type_fdist: &FrequencyDistribution<&str>,
     tok0: &Token,
     tok1: &Token,
-) -> bool
-where
-    P: TrainerParameters,
-{
+) -> bool {
     use crate::prelude::{BEG_UC, MID_UC};
 
     if tok0.is_abbrev() || !tok0.is_sentence_break() {
@@ -380,18 +360,13 @@ where
         let count = (type_fdist[key] + type_fdist[&key[..key.len() - 1]]) as f64;
 
         // Already an abbreviation...
-        if data.contains_abbrev(tok0.typ()) || count >= P::ABBREV_UPPER_BOUND {
+        if data.contains_abbrev(tok0.typ()) || count >= config.abbrev_upper_bound() {
             false
-        } else if P::is_internal_punctuation(&tok1.typ().chars().next().unwrap()) {
+        } else if config.is_internal_punctuation(&tok1.typ().chars().next().unwrap()) {
             true
         } else if tok1.is_lowercase() {
             let ctxt = data.get_orthographic_context(tok1.typ_without_break_or_period());
-
-            if (ctxt & BEG_UC > 0) && !(ctxt & MID_UC > 0) {
-                true
-            } else {
-                false
-            }
+            (ctxt & BEG_UC > 0) && (ctxt & MID_UC == 0)
         } else {
             false
         }
@@ -404,32 +379,27 @@ fn is_potential_sentence_starter(cur: &Token, prev: &Token) -> bool {
 }
 
 #[inline(always)]
-fn is_potential_collocation<P>(tok0: &Token, tok1: &Token) -> bool
-where
-    P: TrainerParameters,
-{
-    P::INCLUDE_ALL_COLLOCATIONS
-        || (P::INCLUDE_ABBREV_COLLOCATIONS && tok0.is_abbrev())
+fn is_potential_collocation(config: &impl TrainerConfig, tok0: &Token, tok1: &Token) -> bool {
+    config.include_all_collocations()
+        || (config.include_abbrev_collocations() && tok0.is_abbrev())
         || (tok0.is_sentence_break() && (tok0.is_numeric() || tok0.is_initial()))
-            && tok0.is_non_punct()
-            && tok1.is_non_punct()
+        && tok0.is_non_punct()
+        && tok1.is_non_punct()
 }
 
-/// Iterates over every token from the supplied iterator. Only returns
-/// the ones that are 'not obviously' abbreviations. Also returns the associated
-/// score of that token.
-struct ReclassifyIterator<'b, I, P> {
+/// Iterates over every token from the supplied iterator. Also returns
+/// the associated score of that token.
+struct ReclassifyIterator<'config, 'b, I, T> {
     iter: I,
-    data: &'b TrainingData,
     period_token_count: usize,
     type_fdist: &'b FrequencyDistribution<&'b str>,
-    params: PhantomData<P>,
+    config: &'config T,
 }
 
-impl<'b, I, P> Iterator for ReclassifyIterator<'b, I, P>
+impl<'b, I, T> Iterator for ReclassifyIterator<'_, 'b, I, T>
 where
     I: Iterator<Item = &'b Token>,
-    P: TrainerParameters,
+    T: TrainerConfig,
 {
     type Item = (&'b Token, f64);
 
@@ -440,21 +410,8 @@ where
                 continue;
             }
 
-            if t.has_final_period() {
-                if self.data.contains_abbrev(t.typ()) {
-                    continue;
-                }
-            } else if !self.data.contains_abbrev(t.typ()) {
-                continue;
-            }
-
-            let num_periods =
-                t.typ_without_period()
-                    .chars()
-                    .fold(0, |acc, c| if c == '.' { acc + 1 } else { acc })
-                    + 1;
+            let num_periods = t.typ_without_period().bytes().filter(|&u| u == b'.').count() + 1;
             let num_nonperiods = t.typ_without_period().chars().count() - num_periods + 1;
-
             let count_with_period = self.type_fdist.get(t.typ_with_period());
             let count_without_period = self.type_fdist.get(t.typ_without_period());
 
@@ -466,7 +423,7 @@ where
             );
 
             let f_length = (-(num_nonperiods as f64)).exp();
-            let f_penalty = if P::IGNORE_ABBREV_PENALTY {
+            let f_penalty = if self.config.ignore_abbrev_penalty() {
                 0f64
             } else {
                 (num_nonperiods as f64).powi(-(count_without_period as i32))
@@ -527,18 +484,18 @@ where
     }
 }
 
-struct PotentialCollocationsIterator<'b, I, P> {
+struct PotentialCollocationsIterator<'a, 'b, I, P> {
     iter: I,
     data: &'b TrainingData,
     type_fdist: &'b FrequencyDistribution<&'b str>,
     collocation_fdist: &'b FrequencyDistribution<Collocation<&'b Token>>,
-    params: PhantomData<P>,
+    config: &'a P,
 }
 
-impl<'a, 'b, I, P> Iterator for PotentialCollocationsIterator<'b, I, P>
+impl<'a, 'config, 'b, I, P> Iterator for PotentialCollocationsIterator<'config, 'b, I, P>
 where
     I: Iterator<Item = &'a Collocation<&'a Token>>,
-    P: TrainerParameters,
+    P: TrainerConfig,
 {
     type Item = (&'a Collocation<&'a Token>, f64);
 
@@ -561,7 +518,7 @@ where
 
             if left_count > 1
                 && right_count > 1
-                && P::COLLOCATION_FREQUENCY_LOWER_BOUND < count as f64
+                && self.config.collocation_frequency_lower_bound() < count as f64
                 && count <= cmp::min(left_count, right_count)
             {
                 let likelihood = util::col_log_likelihood(
@@ -571,7 +528,7 @@ where
                     self.type_fdist.sum_counts() as f64,
                 );
 
-                if likelihood >= P::COLLOCATION_LOWER_BOUND
+                if likelihood >= self.config.collocation_lower_bound()
                     && (self.type_fdist.sum_counts() as f64 / left_count as f64)
                         > (right_count as f64 / count as f64)
                 {
@@ -584,18 +541,18 @@ where
     }
 }
 
-struct PotentialSentenceStartersIterator<'b, I, P> {
+struct PotentialSentenceStartersIterator<'config, 'b, I, P> {
     iter: I,
     sentence_break_count: usize,
     type_fdist: &'b FrequencyDistribution<&'b str>,
     sentence_starter_fdist: &'b FrequencyDistribution<&'b Token>,
-    params: PhantomData<P>,
+    config: &'config P,
 }
 
-impl<'a, 'b, I, P> Iterator for PotentialSentenceStartersIterator<'b, I, P>
+impl<'config, 'a, 'b, I, P> Iterator for PotentialSentenceStartersIterator<'config, 'b, I, P>
 where
     I: Iterator<Item = &'a &'a Token>,
-    P: TrainerParameters,
+    P: TrainerConfig,
 {
     type Item = (&'a Token, f64);
 
@@ -619,7 +576,7 @@ where
 
             let ratio = self.type_fdist.sum_counts() as f64 / self.sentence_break_count as f64;
 
-            if likelihood >= P::SENTENCE_STARTER_LOWER_BOUND
+            if likelihood >= self.config.sentence_starter_lower_bound()
                 && ratio > (typ_count as f64 / ss_count as f64)
             {
                 return Some((*tok, likelihood));

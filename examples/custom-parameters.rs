@@ -1,20 +1,20 @@
 use phf::phf_set;
 use punkt::{params::*, SentenceTokenizer, Trainer, TrainingData};
 
-struct MyParams;
+struct MyConfig;
 
-impl DefinesInternalPunctuation for MyParams {}
-impl DefinesNonPrefixCharacters for MyParams {}
-impl DefinesNonWordCharacters for MyParams {
+impl DefinesInternalPunctuation for MyConfig {}
+impl DefinesNonPrefixCharacters for MyConfig {}
+impl DefinesNonWordCharacters for MyConfig {
     const NONWORD_CHARS: &'static Set<char> = &phf_set![
         '?', '!', ')', '"', ';', '}', ']', '*', ':', '@', '\'', '(', '{', '[', '\u{201c}',
         '\u{201d}'
     ];
 }
-impl DefinesPunctuation for MyParams {}
-impl DefinesSentenceEndings for MyParams {}
+impl DefinesPunctuation for MyConfig {}
+impl DefinesSentenceEndings for MyConfig {}
 
-impl TrainerParameters for MyParams {
+impl TrainerConfig for MyConfig {
     const ABBREV_LOWER_BOUND: f64 = 0.3;
     const ABBREV_UPPER_BOUND: f64 = 8f64;
     const IGNORE_ABBREV_PENALTY: bool = false;
@@ -33,12 +33,12 @@ fn main() {
     println!("\n-- Trained using custom parameters --\n");
 
     let doc = include_str!("../test/raw/ny-times-article-02.txt");
-    let trainer: Trainer<MyParams> = Trainer::new();
+    let trainer = Trainer::new(MyConfig);
     let mut data = TrainingData::new();
 
     trainer.train(doc, &mut data);
 
-    for s in SentenceTokenizer::<MyParams>::new(doc, &data) {
+    for s in SentenceTokenizer::<MyConfig>::new(doc, &data) {
         println!("{:?}", s);
     }
 }

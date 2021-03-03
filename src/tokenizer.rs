@@ -23,22 +23,22 @@ const STATE_CAPT_TOK: u8 = 0b00000100; // Start capturing token state.
 const STATE_UPDT_STT: u8 = 0b10000000; // Update the start token flag.
 const STATE_UPDT_RET: u8 = 0b01000000; // Update the position at end flag.
 
-struct PeriodContextTokenizer<'a, P> {
+struct PeriodContextTokenizer<'config, 'a, P> {
     doc: &'a str,
     pos: usize,
-    params: PhantomData<P>,
+    config: &'config P,
 }
 
-impl<'a, P> PeriodContextTokenizer<'a, P>
+impl<'config, 'a, P> PeriodContextTokenizer<'config, 'a, P>
 where
     P: DefinesNonWordCharacters + DefinesSentenceEndings,
 {
     #[inline(always)]
-    pub fn new(doc: &'a str) -> PeriodContextTokenizer<'a, P> {
+    pub fn new(config: &'config P, doc: &'a str) -> PeriodContextTokenizer<'config, 'a, P> {
         PeriodContextTokenizer {
             doc,
             pos: 0,
-            params: PhantomData,
+            config,
         }
     }
 
@@ -78,7 +78,7 @@ where
     }
 }
 
-impl<'a, P> Iterator for PeriodContextTokenizer<'a, P>
+impl<'a, P> Iterator for PeriodContextTokenizer<'_, 'a, P>
 where
     P: DefinesNonWordCharacters + DefinesSentenceEndings,
 {
@@ -352,15 +352,15 @@ where
 ///   println!("{:?}", &doc[start..end]);
 /// }
 /// ```
-pub struct SentenceByteOffsetTokenizer<'a, P> {
+pub struct SentenceByteOffsetTokenizer<'config, 'a, P> {
     doc: &'a str,
     data: &'a TrainingData,
-    iter: PeriodContextTokenizer<'a, P>,
+    iter: PeriodContextTokenizer<'config, 'a, P>,
     last: usize,
-    params: PhantomData<P>,
+    config: &'config P,
 }
 
-impl<'a, P> SentenceByteOffsetTokenizer<'a, P>
+impl<'config, 'a, P> SentenceByteOffsetTokenizer<'a, P>
 where
     P: DefinesNonPrefixCharacters
         + DefinesNonWordCharacters
@@ -375,7 +375,7 @@ where
             iter: PeriodContextTokenizer::new(doc),
             data,
             last: 0,
-            params: PhantomData,
+            config: PhantomData,
         }
     }
 }
@@ -662,9 +662,11 @@ fn word_tokenizer_compare_nltk() {
 
 #[cfg(test)]
 fn train_on_document(data: &mut TrainingData, doc: &str) {
-    use crate::trainer::Trainer;
+    use crate::{
+        prelude::Standard,
+        trainer::Trainer};
 
-    let trainer: Trainer<crate::prelude::Standard> = Trainer::new();
+    let trainer = Trainer::new(Standard);
     trainer.train(&doc, data);
 }
 

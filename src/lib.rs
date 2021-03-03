@@ -153,7 +153,7 @@ pub use trainer::{Trainer, TrainingData};
 pub mod params {
     pub use crate::prelude::{
         DefinesInternalPunctuation, DefinesNonPrefixCharacters, DefinesNonWordCharacters,
-        DefinesPunctuation, DefinesSentenceEndings, Set, Standard, TrainerParameters,
+        DefinesPunctuation, DefinesSentenceEndings, Set, Standard, TrainerConfig,
     };
 }
 
