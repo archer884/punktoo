@@ -233,7 +233,7 @@ where
         let mut collocation_fdist = FrequencyDistribution::new();
         let mut sentence_starter_fdist = FrequencyDistribution::new();
 
-        for t in tokens.iter() {
+        for t in &tokens {
             if t.has_final_period() {
                 period_token_count += 1
             }
@@ -255,13 +255,13 @@ where
                 if score >= P::ABBREV_LOWER_BOUND {
                     if t.has_final_period() {
                         unsafe {
-                            (&mut *(data as *const TrainingData as *mut TrainingData))
+                            (*(data as *const TrainingData as *mut TrainingData))
                                 .insert_abbrev(t.typ_without_period());
                         }
                     }
                 } else if !t.has_final_period() {
                     unsafe {
-                        (&mut *(data as *const TrainingData as *mut TrainingData))
+                        (*(data as *const TrainingData as *mut TrainingData))
                             .remove_abbrev(t.typ_without_period());
                     }
                 }
@@ -270,10 +270,8 @@ where
 
         // Annotating the tokens requires an unsafe block, but it won't modify any pointers,
         // just will modify some flags on the tokens.
-        for t in tokens.iter() {
-            unsafe {
-                util::annotate_first_pass::<P>(&mut *(t as *const Token as *mut Token), data);
-            }
+        for t in &tokens {
+            util::annotate_first_pass::<P>(t, data);
         }
 
         // Update or insert the orthographic context of all tokens in the document.
@@ -309,7 +307,7 @@ where
             for (lt, rt) in consecutive_token_iter {
                 match rt {
                     Some(cur) if lt.has_final_period() => {
-                        if is_rare_abbrev_type::<P>(&data, &type_fdist, lt, cur) {
+                        if is_rare_abbrev_type::<P>(data, &type_fdist, lt, cur) {
                             data.insert_abbrev(lt.typ_without_period());
                         }
 
@@ -344,7 +342,7 @@ where
         {
             let clc_iter: PotentialCollocationsIterator<_, P> = PotentialCollocationsIterator {
                 iter: collocation_fdist.keys(),
-                data: &data,
+                data,
                 type_fdist: &type_fdist,
                 collocation_fdist: &collocation_fdist,
                 params: PhantomData,
@@ -352,7 +350,7 @@ where
 
             for (col, _) in clc_iter {
                 unsafe {
-                    (&mut *(data as *const TrainingData as *mut TrainingData)).insert_collocation(
+                    (*(data as *const TrainingData as *mut TrainingData)).insert_collocation(
                         col.left().typ_without_period(),
                         col.right().typ_without_break_or_period(),
                     );
@@ -386,12 +384,7 @@ where
             true
         } else if tok1.is_lowercase() {
             let ctxt = data.get_orthographic_context(tok1.typ_without_break_or_period());
-
-            if (ctxt & BEG_UC > 0) && !(ctxt & MID_UC > 0) {
-                true
-            } else {
-                false
-            }
+            (ctxt & BEG_UC > 0) && (ctxt & MID_UC == 0)
         } else {
             false
         }
@@ -435,7 +428,7 @@ where
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(t) = self.iter.next() {
+        for t in self.iter.by_ref() {
             if !t.is_non_punct() || t.is_numeric() {
                 continue;
             }
@@ -544,7 +537,7 @@ where
 
     #[inline]
     fn next(&mut self) -> Option<(&'a Collocation<&'a Token>, f64)> {
-        while let Some(col) = self.iter.next() {
+        for col in self.iter.by_ref() {
             if self
                 .data
                 .contains_sentence_starter(col.right().typ_without_break_or_period())
@@ -601,7 +594,7 @@ where
 
     #[inline]
     fn next(&mut self) -> Option<(&'a Token, f64)> {
-        while let Some(tok) = self.iter.next() {
+        for tok in self.iter.by_ref() {
             let ss_count = self.sentence_starter_fdist.get(tok);
             let typ_count = self.type_fdist.get(tok.typ_with_period())
                 + self.type_fdist.get(tok.typ_without_period());

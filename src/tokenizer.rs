@@ -258,18 +258,20 @@ where
                 // one exists return it, and modify `self.pos`. Otherwise, continue.
                 // If a capture has begin, or a comma was encountered, return the token
                 // before this multi-char.
-                '.' | '-' => if let Some(s) = is_multi_char(self.doc, self.pos) {
-                    if state & CAPTURE_START != 0 || state & CAPTURE_COMMA != 0 {
+                '.' | '-' => {
+                    if let Some(s) = is_multi_char(self.doc, self.pos) {
+                        if state & CAPTURE_START != 0 || state & CAPTURE_COMMA != 0 {
+                            return_token!()
+                        }
+
+                        start = self.pos;
+                        is_ellipsis = s.ends_with('.');
+
+                        self.pos += s.len();
+
                         return_token!()
                     }
-
-                    start = self.pos;
-                    is_ellipsis = s.ends_with('.');
-
-                    self.pos += s.len();
-
-                    return_token!()
-                },
+                }
                 // Not a potential multi-char start, continue...
                 _ => (),
             }
@@ -390,7 +392,7 @@ where
     type Item = (usize, usize);
 
     fn next(&mut self) -> Option<(usize, usize)> {
-        while let Some((slice, tok_start, ws_start, slice_end, len)) = self.iter.next() {
+        for (slice, tok_start, ws_start, slice_end, len) in self.iter.by_ref() {
             let mut prv = None;
             let mut has_sentence_break = false;
 
@@ -398,7 +400,7 @@ where
             // then set the flag `has_sentence_break`.
             for mut t in WordTokenizer::<P>::new(slice) {
                 // First pass annotation can occur for each token...
-                crate::util::annotate_first_pass::<P>(&mut t, self.data);
+                crate::util::annotate_first_pass::<P>(&t, self.data);
 
                 // Second pass annotation is a bit more finicky...It depends on the
                 // previous token that was found.

@@ -11,7 +11,9 @@ use num::Float;
 use crate::{prelude::DefinesSentenceEndings, token::Token, trainer::TrainingData};
 
 /// Peforms a first pass annotation on a Token.
-pub fn annotate_first_pass<P: DefinesSentenceEndings>(tok: &mut Token, data: &TrainingData) {
+pub fn annotate_first_pass<P: DefinesSentenceEndings>(tok: &Token, data: &TrainingData) {
+    // FIXME clippy says there is basically no chance this does what was intended, but I have no
+    // idea what was intended as yet.
     let is_split_abbrev = tok
         .tok()
         .rsplitn(1, '-')

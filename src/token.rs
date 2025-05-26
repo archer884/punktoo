@@ -7,6 +7,7 @@
 // except according to those terms.
 
 use std::{
+    cell::Cell,
     hash::{Hash, Hasher},
     ops::Deref,
 };
@@ -32,7 +33,7 @@ const IS_ALPHABETIC: u16 = 0b0000010000000000;
 #[derive(Eq)]
 pub struct Token {
     inner: String,
-    flags: u16,
+    flags: Cell<u16>,
 }
 
 impl Token {
@@ -45,9 +46,9 @@ impl Token {
         // Add a period to any tokens without a period. This is an optimization
         // to avoid creating an entirely new token when using as a key.
         let mut tok = if slice.as_bytes()[slice.len() - 1] == b'.' {
-            let mut tok = Token {
+            let tok = Token {
                 inner: String::with_capacity(slice.len()),
-                flags: 0x00,
+                flags: 0x00.into(),
             };
 
             tok.set_has_final_period(true);
@@ -55,7 +56,7 @@ impl Token {
         } else {
             Token {
                 inner: String::with_capacity(slice.len() + 1),
-                flags: 0x00,
+                flags: 0x00.into(),
             }
         };
 
@@ -72,7 +73,7 @@ impl Token {
 
             if c.is_alphabetic() || c == '_' {
                 tok.set_is_non_punct(true);
-            } else if !c.is_digit(10) {
+            } else if !c.is_ascii_digit() {
                 has_punct = true;
             }
         }
@@ -175,52 +176,52 @@ impl Token {
 
     #[inline(always)]
     pub fn is_uppercase(&self) -> bool {
-        self.flags & IS_UPPERCASE != 0
+        self.flags.get() & IS_UPPERCASE != 0
     }
 
     #[inline(always)]
     pub fn is_lowercase(&self) -> bool {
-        self.flags & IS_LOWERCASE != 0
+        self.flags.get() & IS_LOWERCASE != 0
     }
 
     #[inline(always)]
     pub fn is_ellipsis(&self) -> bool {
-        self.flags & IS_ELLIPSIS != 0
+        self.flags.get() & IS_ELLIPSIS != 0
     }
 
     #[inline(always)]
     pub fn is_abbrev(&self) -> bool {
-        self.flags & IS_ABBREV != 0
+        self.flags.get() & IS_ABBREV != 0
     }
 
     #[inline(always)]
     pub fn is_sentence_break(&self) -> bool {
-        self.flags & IS_SENTENCE_BREAK != 0
+        self.flags.get() & IS_SENTENCE_BREAK != 0
     }
 
     #[inline(always)]
     pub fn has_final_period(&self) -> bool {
-        self.flags & HAS_FINAL_PERIOD != 0
+        self.flags.get() & HAS_FINAL_PERIOD != 0
     }
 
     #[inline(always)]
     pub fn is_paragraph_start(&self) -> bool {
-        self.flags & IS_PARAGRAPH_START != 0
+        self.flags.get() & IS_PARAGRAPH_START != 0
     }
 
     #[inline(always)]
     pub fn is_newline_start(&self) -> bool {
-        self.flags & IS_NEWLINE_START != 0
+        self.flags.get() & IS_NEWLINE_START != 0
     }
 
     #[inline(always)]
     pub fn is_numeric(&self) -> bool {
-        self.flags & IS_NUMERIC != 0
+        self.flags.get() & IS_NUMERIC != 0
     }
 
     #[inline(always)]
     pub fn is_initial(&self) -> bool {
-        self.flags & IS_INITIAL != 0
+        self.flags.get() & IS_INITIAL != 0
     }
 
     // The NLTK docs note that all numeric tokens are considered to be contain
@@ -228,119 +229,143 @@ impl Token {
     // has alphabetic characters.
     #[inline(always)]
     pub fn is_non_punct(&self) -> bool {
-        (self.flags & IS_NON_PUNCT != 0) || self.is_numeric()
+        (self.flags.get() & IS_NON_PUNCT != 0) || self.is_numeric()
     }
 
     #[inline(always)]
     pub fn is_alphabetic(&self) -> bool {
-        self.flags & IS_ALPHABETIC != 0
+        self.flags.get() & IS_ALPHABETIC != 0
     }
 
     #[inline(always)]
-    pub fn set_is_ellipsis(&mut self, b: bool) {
+    pub fn set_is_ellipsis(&self, b: bool) {
         if b {
-            self.flags |= IS_ELLIPSIS;
+            let value = self.flags.get();
+            self.flags.set(value | IS_ELLIPSIS);
         } else if self.is_ellipsis() {
-            self.flags ^= IS_ELLIPSIS;
+            let value = self.flags.get();
+            self.flags.set(value ^ IS_ELLIPSIS);
         }
     }
 
     #[inline(always)]
-    pub fn set_is_abbrev(&mut self, b: bool) {
+    pub fn set_is_abbrev(&self, b: bool) {
         if b {
-            self.flags |= IS_ABBREV;
+            let value = self.flags.get();
+            self.flags.set(value | IS_ABBREV);
         } else if self.is_abbrev() {
-            self.flags ^= IS_ABBREV;
+            let value = self.flags.get();
+            self.flags.set(value ^ IS_ABBREV);
         }
     }
 
     #[inline(always)]
-    pub fn set_is_sentence_break(&mut self, b: bool) {
+    pub fn set_is_sentence_break(&self, b: bool) {
         if b {
-            self.flags |= IS_SENTENCE_BREAK;
+            let value = self.flags.get();
+            self.flags.set(value | IS_SENTENCE_BREAK);
         } else if self.is_sentence_break() {
-            self.flags ^= IS_SENTENCE_BREAK;
+            let value = self.flags.get();
+            self.flags.set(value ^ IS_SENTENCE_BREAK);
         }
     }
 
     #[inline(always)]
-    pub fn set_has_final_period(&mut self, b: bool) {
+    pub fn set_has_final_period(&self, b: bool) {
         if b {
-            self.flags |= HAS_FINAL_PERIOD;
+            let value = self.flags.get();
+            self.flags.set(value | HAS_FINAL_PERIOD);
         } else if self.has_final_period() {
-            self.flags ^= HAS_FINAL_PERIOD;
+            let value = self.flags.get();
+            self.flags.set(value ^ HAS_FINAL_PERIOD);
         }
     }
 
     #[inline(always)]
-    pub fn set_is_paragraph_start(&mut self, b: bool) {
+    pub fn set_is_paragraph_start(&self, b: bool) {
         if b {
-            self.flags |= IS_PARAGRAPH_START;
+            let value = self.flags.get();
+            self.flags.set(value | IS_PARAGRAPH_START);
         } else if self.is_paragraph_start() {
-            self.flags ^= IS_PARAGRAPH_START;
+            let value = self.flags.get();
+            self.flags.set(value ^ IS_PARAGRAPH_START);
         }
     }
 
     #[inline(always)]
-    pub fn set_is_newline_start(&mut self, b: bool) {
+    pub fn set_is_newline_start(&self, b: bool) {
         if b {
-            self.flags |= IS_NEWLINE_START;
+            let value = self.flags.get();
+            self.flags.set(value | IS_NEWLINE_START);
         } else if self.is_newline_start() {
-            self.flags ^= IS_NEWLINE_START;
+            let value = self.flags.get();
+            self.flags.set(value ^ IS_NEWLINE_START);
         }
     }
 
     #[inline(always)]
-    pub fn set_is_uppercase(&mut self, b: bool) {
+    pub fn set_is_uppercase(&self, b: bool) {
         if b {
-            self.flags |= IS_UPPERCASE;
+            let value = self.flags.get();
+            self.flags.set(value | IS_UPPERCASE);
         } else if self.is_uppercase() {
-            self.flags ^= IS_UPPERCASE;
+            let value = self.flags.get();
+            self.flags.set(value ^ IS_UPPERCASE);
         }
     }
 
     #[inline(always)]
-    pub fn set_is_lowercase(&mut self, b: bool) {
+    pub fn set_is_lowercase(&self, b: bool) {
         if b {
-            self.flags |= IS_LOWERCASE;
+            let value = self.flags.get();
+            self.flags.set(value | IS_LOWERCASE);
         } else if self.is_lowercase() {
-            self.flags ^= IS_LOWERCASE;
+            let value = self.flags.get();
+            self.flags.set(value ^ IS_LOWERCASE);
         }
     }
 
     #[inline(always)]
-    pub fn set_is_numeric(&mut self, b: bool) {
+    pub fn set_is_numeric(&self, b: bool) {
         if b {
-            self.flags |= IS_NUMERIC;
+            let value = self.flags.get();
+            self.flags.set(value | IS_NUMERIC);
         } else if self.is_numeric() {
-            self.flags ^= IS_NUMERIC;
+            let value = self.flags.get();
+            self.flags.set(value ^ IS_NUMERIC);
         }
     }
 
     #[inline(always)]
-    pub fn set_is_initial(&mut self, b: bool) {
+    pub fn set_is_initial(&self, b: bool) {
         if b {
-            self.flags |= IS_INITIAL;
+            let value = self.flags.get();
+            self.flags.set(value | IS_INITIAL);
         } else if self.is_initial() {
-            self.flags ^= IS_INITIAL;
+            let value = self.flags.get();
+            self.flags.set(value ^ IS_INITIAL);
         }
     }
 
     #[inline(always)]
-    pub fn set_is_non_punct(&mut self, b: bool) {
+    pub fn set_is_non_punct(&self, b: bool) {
         if b {
-            self.flags |= IS_NON_PUNCT;
+            let value = self.flags.get();
+            self.flags.set(value | IS_NON_PUNCT);
         } else if self.is_non_punct() {
-            self.flags ^= IS_NON_PUNCT;
+            let value = self.flags.get();
+            self.flags.set(value ^ IS_NON_PUNCT);
         }
     }
 
     #[inline(always)]
-    pub fn set_is_alphabetic(&mut self, b: bool) {
+    pub fn set_is_alphabetic(&self, b: bool) {
         if b {
-            self.flags |= IS_ALPHABETIC;
+            let value = self.flags.get();
+            self.flags.set(value | IS_ALPHABETIC);
         } else if self.is_alphabetic() {
-            self.flags ^= IS_ALPHABETIC;
+            let value = self.flags.get();
+            self.flags.set(value ^ IS_ALPHABETIC);
         }
     }
 }
@@ -386,7 +411,7 @@ fn is_str_numeric(tok: &str) -> bool {
         match c {
             // A digit was found. Note this to confirm later if punctuation
             // within the number is valid or not.
-            _ if c.is_digit(10) => digit_found = true,
+            _ if c.is_ascii_digit() => digit_found = true,
             // A delimeter was found. This is valid as long as
             // a digit was also found prior.
             ',' | '.' | '-' if digit_found => (),
@@ -432,13 +457,13 @@ fn test_token_flags() {
     )
   );
 
-    let mut tok = Token::new("test", false, false, false);
+    let tok = Token::new("test", false, false, false);
 
     tok.set_is_non_punct(false);
     tok.set_is_lowercase(false);
     tok.set_is_alphabetic(false);
 
-    assert_eq!(tok.flags, 0);
+    assert_eq!(tok.flags.get(), 0);
 
     perform_flag_test!(tok, set_is_ellipsis, is_ellipsis);
     perform_flag_test!(tok, set_is_abbrev, is_abbrev);
