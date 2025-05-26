@@ -354,15 +354,15 @@ where
 ///   println!("{:?}", &doc[start..end]);
 /// }
 /// ```
-pub struct SentenceByteOffsetTokenizer<'a, P> {
-    doc: &'a str,
+pub struct SentenceByteOffsetTokenizer<'a, 'doc, P> {
+    doc: &'doc str,
     data: &'a TrainingData,
     iter: PeriodContextTokenizer<'a, P>,
     last: usize,
     params: PhantomData<P>,
 }
 
-impl<'a, P> SentenceByteOffsetTokenizer<'a, P>
+impl<'a, 'doc, P> SentenceByteOffsetTokenizer<'a, 'doc, P>
 where
     P: DefinesNonPrefixCharacters
         + DefinesNonWordCharacters
@@ -371,7 +371,10 @@ where
 {
     /// Creates a new `SentenceByteOffsetTokenizer`.
     #[inline(always)]
-    pub fn new(doc: &'a str, data: &'a TrainingData) -> SentenceByteOffsetTokenizer<'a, P> {
+    pub fn new(doc: &'doc str, data: &'a TrainingData) -> SentenceByteOffsetTokenizer<'a, 'doc, P>
+    where
+        'doc: 'a,
+    {
         SentenceByteOffsetTokenizer {
             doc,
             iter: PeriodContextTokenizer::new(doc),
@@ -382,7 +385,7 @@ where
     }
 }
 
-impl<'a, P> Iterator for SentenceByteOffsetTokenizer<'a, P>
+impl<'a, 'doc, P> Iterator for SentenceByteOffsetTokenizer<'a, 'doc, P>
 where
     P: DefinesNonPrefixCharacters
         + DefinesNonWordCharacters
@@ -458,13 +461,13 @@ where
 ///   println!("{:?}", sent);
 /// }
 /// ```
-pub struct SentenceTokenizer<'a, P> {
-    doc: &'a str,
-    iter: SentenceByteOffsetTokenizer<'a, P>,
+pub struct SentenceTokenizer<'a, 'doc, P> {
+    doc: &'doc str,
+    iter: SentenceByteOffsetTokenizer<'a, 'doc, P>,
     params: PhantomData<P>,
 }
 
-impl<'a, P> SentenceTokenizer<'a, P>
+impl<'a, 'doc, P> SentenceTokenizer<'a, 'doc, P>
 where
     P: DefinesNonPrefixCharacters
         + DefinesNonWordCharacters
@@ -473,7 +476,10 @@ where
 {
     /// Creates a new `SentenceTokenizer`.
     #[inline(always)]
-    pub fn new(doc: &'a str, data: &'a TrainingData) -> SentenceTokenizer<'a, P> {
+    pub fn new(doc: &'doc str, data: &'a TrainingData) -> SentenceTokenizer<'a, 'doc, P>
+    where
+        'doc: 'a,
+    {
         SentenceTokenizer {
             doc,
             iter: SentenceByteOffsetTokenizer::new(doc, data),
@@ -482,17 +488,17 @@ where
     }
 }
 
-impl<'a, P> Iterator for SentenceTokenizer<'a, P>
+impl<'a, 'doc, P> Iterator for SentenceTokenizer<'a, 'doc, P>
 where
     P: DefinesNonPrefixCharacters
         + DefinesNonWordCharacters
         + DefinesPunctuation
         + DefinesSentenceEndings,
 {
-    type Item = &'a str;
+    type Item = &'doc str;
 
     #[inline]
-    fn next(&mut self) -> Option<&'a str> {
+    fn next(&mut self) -> Option<&'doc str> {
         self.iter.next().map(|(start, end)| &self.doc[start..end])
     }
 }
