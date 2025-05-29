@@ -12,14 +12,11 @@ use crate::{prelude::DefinesSentenceEndings, token::Token, trainer::TrainingData
 
 /// Peforms a first pass annotation on a Token.
 pub fn annotate_first_pass<P: DefinesSentenceEndings>(tok: &Token, data: &TrainingData) {
-    // FIXME clippy says there is basically no chance this does what was intended, but I have no
-    // idea what was intended as yet.
     let is_split_abbrev = tok
         .tok()
-        .rsplitn(1, '-')
-        .next()
-        .map(|s| data.contains_abbrev(s))
-        .unwrap_or(false);
+        .rsplit_once('-')
+        .map(|(_left, right)| data.contains_abbrev(right))
+        .unwrap_or_default();
 
     if tok.tok().len() == 1 && P::is_sentence_ending(&tok.tok().chars().next().unwrap()) {
         tok.set_is_sentence_break(true);

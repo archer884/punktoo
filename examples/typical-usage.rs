@@ -1,4 +1,4 @@
-use punkt::{params::Standard, SentenceTokenizer, Trainer, TrainingData};
+use punktoo::{params::Standard, SentenceTokenizer, Trainer, TrainingData};
 
 fn main() {
     let docs = [

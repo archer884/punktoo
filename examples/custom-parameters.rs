@@ -1,5 +1,5 @@
 use phf::phf_set;
-use punkt::{params::*, SentenceTokenizer, Trainer, TrainingData};
+use punktoo::{params::*, SentenceTokenizer, Trainer, TrainingData};
 
 struct MyParams;
 

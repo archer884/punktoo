@@ -1,6 +1,6 @@
 [package]
-name = "punkt"
-version = "1.1.0"
+name = "punktoo"
+version = "1.2.0"
 edition = "2021"
 authors = ["J/A <archer884@zoho.com>", "Ferris Tseng <ferristseng@fastmail.fm>"]
 keywords = ["punkt", "sentence", "token", "tokenizer"]
